@@ -1,0 +1,21 @@
+Node_Ren.c (the renovarte version) is the code that I am now working on.
+
+The struct's used in the code are declared at the beginning, I may change the struct's but not extensively.
+
+Maheshwara Reddy: A20284393
+
+Design - Arun and Mahesh
+
+Build
+	Main			Mahesh
+	Config File Handling	Arun
+	HandlerThreads		Mahesh
+	File Transfer		Arun
+	Test Platform		Arun
+	Integration		Mahesh
+
+Test
+	Unit Testing
+	Integration Testing
+	
+

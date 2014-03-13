@@ -1,0 +1,304 @@
+/* This is the main server program. This program is run to activate the iServer (Index Server).
+ * Upon start, this server locates and loads the Files List Table (FLT) from file stored in the last run.
+ * Files List Table is part of the Linux Kernal, see the Code file FLT.c for the code.
+ */
+//Header files declaration Section
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<sys/socket.h>
+#include<arpa/inet.h>
+#include<netinet/in.h>
+#include<signal.h>
+#include<sys/time.h>
+//Header file for Table Functions
+#include>Table_Functions.h>
+//Global varibales declaration
+//Port number of the MPrt
+int MPrt = 40000;
+struct sockaddr_in MPrtSocket;
+int MPrtSocketNo;
+char MessBuff[1000];
+char OutBuff[1000];
+//Function declarations
+void DisplayStartMessage(void);
+int StartSocket(int);
+void Listen2MPrt(void);
+void DisplayCurrentStatus(void);
+void HandleRequest(int, struct sockaddr_in);
+void NewPeer(void);
+void NewFile(void);
+void RemoveFile(void);
+void ClosePeer(void);
+void SearchFile(void);
+void SendMessage(int);
+//Global variables, defined in Table_Functions
+extern char *ipList[10];
+extern char *fileName;
+extern MYSQL *con;
+extern MYSQL_RES *result;
+extern int DB_NoOfRows;
+extern MYSQL_ROW row;
+//Function Definitions start here
+void DisplayStartMessage(void)
+{
+  printf("\n-----------------------------------------\n");
+  printf("----------Starting Index Server----------\n");
+  return;
+}
+void DisplayCurrentStatus(void)
+{
+  printf("\n-----------------------------------------\n");
+  printf("Currnet Status: All is well\n");
+  printf("Enter\t \"R\" to Refresh the status\t \"E\" to close the server\n");
+  return;
+}
+//This function creates a socket for the port PrtNo and returns 0 if successfull. 
+int StartSocket(int PrtNo)
+{
+  //Create socket
+  int TempInt1,
+  if((MPrtSocketNo = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+  {
+    return -1;
+  }
+  //Bind the port MPrt to the socket created
+  memset(&MPrtSocket, 0, sizeof(MPrtSocket));
+  MPrtSocket.sin_family = AF_INET;
+  MPrtSocket.sin_addr.s_addr = htonl(INADDR_ANY);
+  MPrtSocket.sin_port = PrtNo;
+  if((TempInt1 = bind(MPrtSocketNo, (struct sockaddr *) &MPrtSocket, sizeof(MPrtSocket))) < 0)
+  {
+    return -2;
+  }
+}
+//This function is run by the child process, that listens to the MPrt for new messages.
+//New processes are created to handle the commands in the messages
+void Listen2MPrt(void)
+{
+  int NewConnSocketNo;
+  int TempInt1;
+  struct sockaddr_in NewConnSocket;
+  //Listen for messages on MPrt for ever
+  while(1)
+  {
+    //Listen for new Connections
+    if(listen(MPrtSocketNo, 10) < 0)
+    {
+      continue;
+    }
+    TempInt1 = sizeof(NewConnSocket);
+    if((NewConnSocketNo = accept(MPrtSocketNo, (struct sockaddr *) &NewConnSocket, &TempInt1)) < 0)
+    {
+      continue;
+    }
+    if((TempInt1 = fork()) == 0)
+    {
+      HandleRequest(NewConnSocketNo, NewConnSocket);
+      exit 0;
+    }
+  }
+}
+//This function accepts messages from the incoming connections and calls appropriate functions to handle the requests
+void HandleRequest(int NewConnSocketNo, struct sockaddr_in NewConnSocket)
+{
+  char MessComm[4];
+  int TempInt1;
+  memset(MessBuff,' ', 1000);
+  MessBuff[0] = '\0';
+  MessComm[3] = '\0';
+  if((TempInt1 = read(NewConnSocketNo, MessBuff, 1000)) < 0)
+  {
+    continue;
+  }
+  for(TempInt1 = 0; TempInt1 < 3; TempInt1++)
+    MessComm[TempInt1] = MessBuff[TempInt1];
+  if(srtcmp("SRT", MessComm) == 0)
+  {
+    NewPeer();
+  }
+  else if(srtcmp("ADD", MessComm) == 0)
+  {
+    NewFile();
+  }
+  else if(strcmp("REM", MessComm) == 0)
+  {
+    RemoveFile();
+  }
+  else if(strcmp("CLO", MessComm) == 0)
+  {
+    ClosePeer();
+  }
+  else if(strcmp("SRC", MessComm) == 0)
+  {
+    SearchFile();
+    SendMessage(NewConnSocketNo);
+  }
+  else
+  {
+    //continue;
+  }
+  close(NewConnSocketNo);
+  exit(0);
+}
+//This function handles the connection requests for new nodes, nodes that want to join the network.
+void NewPeer(void)
+{
+  char SysIP[30];
+  int TempInt1, TempInt2;
+  for(TempInt1 = 0, TempInt2 = 5; TempInt1 < 25 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    SysIP[TempInt1] = MessBuff[TempInt2];
+  SysIP[TempInt1] = '\0';
+  ipList[0] = (char *)malloc((strlen(SysIP) + 1)*(sizeof(char)));
+  strcpy(ipList[0], SysIP);
+  TempInt1 = SetStatus('A');
+  exit (0);
+}
+//This function adds new file under an IP in the FileList table
+void NewFile(void)
+{
+  char SysIP[30], char InFileName[40];
+  int TempInt1, TempInt2;
+  for(TempInt1 = 0, TempInt2 = 5; TempInt1 < 25 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    SysIP[TempInt1] = MessBuff[TempInt2];
+  SysIP[TempInt1] = '\0';
+  ipList[0] = (char *)malloc((strlen(SysIP) + 1)*(sizeof(char)));
+  strcpy(ipList[0], SysIP);
+  for(TempInt1 = 0, TempInt2 += 2; TempInt1 < 40 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    InFileName[TempInt1] = MessBuff[TempInt2];
+  InFileName[TempInt1] = '\0';
+  fileName = (char *)malloc((strlen(InFileName) + 1)*(sizeof(char)));
+  strcpy(fileName, InFileName);
+  TempInt1 = AddFile();
+  exit(0);
+}
+//This function removes a file from the fileList able for a certain IP
+void RemoveFile(void)
+{
+  char SysIP[30], char InFileName[40];
+  int TempInt1, TempInt2;
+  for(TempInt1 = 0, TempInt2 = 5; TempInt1 < 25 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    SysIP[TempInt1] = MessBuff[TempInt2];
+  SysIP[TempInt1] = '\0';
+  ipList[0] = (char *)malloc((strlen(SysIP) + 1)*(sizeof(char)));
+  strcpy(ipList[0], SysIP);
+  for(TempInt1 = 0, TempInt2 += 2; TempInt1 < 40 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    InFileName[TempInt1] = MessBuff[TempInt2];
+  InFileName[TempInt1] = '\0';
+  fileName = (char *)malloc((strlen(InFileName) + 1)*(sizeof(char)));
+  strcpy(fileName, InFileName);
+  TempInt1 = DeleteFile();
+  exit(0);
+}
+//This function removes a peer from the SystemIndex table and removes all files belonging to the peer from the FileList table
+void ClosePeer(void)
+{
+  char SysIP[30];
+  int TempInt1, TempInt2;
+  for(TempInt1 = 0, TempInt2 = 5; TempInt1 < 25 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    SysIP[TempInt1] = MessBuff[TempInt2];
+  SysIP[TempInt1] = '\0';
+  ipList[0] = (char *)malloc((strlen(SysIP) + 1)*(sizeof(char)));
+  strcpy(ipList[0], SysIP);
+  TempInt1 = SetStatus('C');
+  exit (0);
+}
+//This function locates the possible sources for a file and returns IP's of five such peers
+void SearchFile(void)
+{
+  char InFileName[40];
+  int TempInt1, TempInt2;
+  for(TempInt1 = 0, TempInt2 = 5; TempInt1 < 25 && MessBuff[TempInt2] != ']'; TempInt1++, TempInt2++)
+    InFileName[TempInt1] = MessBuff[TempInt2];
+  InFileName[TempInt1] = '\0';
+  fileName = (char *)malloc((strlen(InFileName) + 1)*(sizeof(char)));
+  strcpy(fileName, InFileName);
+  if((TempInt1 = LocateFile()) == 0)
+  {
+    strcpy(OutBuff,"SRCHRES [");
+    for(TempInt1 = 0; TempInt1 < DB_No_Of_Rows; TempInt1++)
+    {
+      strcat(OutBuff, ipList[TempInt1];
+      strcat(OutBuff, "::");
+    }
+    strcat(OutBuff, "]");
+  }
+  else
+  {
+    strcpy(OutBuff,"SRCHRES []");
+  }
+}
+//This function sends a message to a socket, includes a retry logic for failure to transmit
+void SendMessage(struct int NewConnSocketNo)
+{
+  int Try = 1, TempInt1 = 0;
+  while(Try)
+  {
+    Try = 0;
+    if(send(NewConnSocketNo, OutBuff, strlen(OutBuff), 0) == -1)
+    {
+      if(TempInt1++ < 5)
+      {
+	Try = 1;
+	
+      }
+    }
+  }
+}
+//Main function of the iServer application.
+/* This is the main process (MProc) of the iServer Application. MProc listens to the default input port (MPrt)
+ * and spawns a new process for each message received. This server does not retain any state information. 
+ * This applications provides a command line user interface that can be used to see the number of active connections
+ * and transactions. The user command line interface can be used to close the server if needed.
+ */
+int main(int argc, char *argv[])
+{
+  //Variable declaration
+  int MProc;
+  int TempInt1;
+  char uOption;
+  //Main process
+  DisplayStartMessage();
+  //Create a socket for MPort, report error and exit if the socket was not created.
+  if((TempInt1 = StartSocket(MPrt)) != 0)
+  {
+    printf("---Server Error: Unable to create a socket for port %d, change the port number and retry\n",MPrt);
+    return(0);
+  }
+  if((MProc = fork()) == 0)
+  {
+    Listen2MPrt();
+  }
+  while(1)
+  {
+    DisplayCurrentStatus();
+    printf("Enter Option >> ");
+    //Read user option
+    uOption = getche();
+    //Perform the action
+    switch (uOption)
+    {
+      case 'r':
+      case 'R':
+	DisplayCurrentStatus();
+	break;
+     //Exit if requested
+      case 'e':
+      case 'E':
+	printf("Server closing, issueing kill signal...\n");
+	kill(MProc);
+	printf("All processes terminated\nServer was successfully shutdown.\n");
+	return(0);
+	break;
+      default:
+	printf("Option \"%c\" is not valid.\nEnter\t \"R\" to Refresh the status\t \"E\" to close the server\n");
+	break;
+    }
+  }
+  //The program execution should never come here.
+  printf("\nERROR: Program in an unstable state, the server will terminate.\n);
+  kill(MProc);
+  return(1);
+}
+//End of Programme

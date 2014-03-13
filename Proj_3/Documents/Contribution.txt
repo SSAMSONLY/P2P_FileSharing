@@ -1,0 +1,11 @@
+Maheshwara Reddy	: A20284393
+Arun Mathew Iype 	: A20278285
+
+Design 							Arun and Mahesh
+
+Build							Arun
+
+Test Platform						Mahesh
+	Unit Testing                      		Arun
+	Integration/Performance Testing               	Mahesh
+	

@@ -1,0 +1,55 @@
+#include <unistd.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <math.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <pthread.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+
+//These Variables are used to for tetsing and analysis of the program only.
+float Lambda = 0.25, CurrProb;
+char outFile[] = "TestReport.csv";
+extern char InFileName[50];
+//Function that uses exp probability distribution to decide if a change has to be triggered.
+int expDo(int iter)
+{
+  float expProb, randNum;
+  expProb = 1 - exp(-1*Lambda*iter);
+  
+  //Generate a ramdom number between 0 and 1
+  randNum = (rand()%100);
+  randNum = randNum/100;
+  
+  if(randNum <= expProb)
+  {
+    return 1;
+  }
+  return 0;
+}
+
+void writeToFile(char *Data)
+{
+  FILE *fp;
+  if((fp = fopen(outFile, "a")) == NULL)
+    fp = fopen(outFile, "w");
+  fprintf(fp,"%s",Data);
+  fclose(fp);
+  return;
+}
+
+int setUserInput(void)
+{
+  strcpy(InFileName,"text_6kb.txt");
+  sleep(7);
+  return 0;
+  showPeers();
+}

@@ -1,0 +1,70 @@
+//This is a test Client for Component testing
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+int main(int argc, char *argv[])
+{
+   printf("Client Program\n");
+   int sockfd;
+   int len, CurrSeg, TotalSeg, TempInt1, TempInt2;
+   struct sockaddr_in address;
+   int result;
+   char ch[] = "Test2.txt", TempStr[100];
+   char Buffer[1000];
+   FILE *fp;
+ 
+   //Create socket for client.
+   sockfd = socket(AF_INET, SOCK_STREAM, 0);
+ 
+   //Name the socket as agreed with server.
+   address.sin_family = AF_INET;
+   address.sin_addr.s_addr = inet_addr("192.168.205.130");
+   address.sin_port = htons(17000);
+   len = sizeof(address);
+   //
+   result = connect(sockfd, (struct sockaddr *)&address, len);
+ 
+   if(result == 1)
+   {
+      perror("Could not connect\n");
+      exit(0);
+   }
+   //Read and write via sockfd
+   printf("Sending to server = %s\n", ch);
+   write(sockfd, ch, strlen(ch));
+   CurrSeg = 0;
+   fp = fopen(ch,"w");
+   TotalSeg = 1;
+   while(CurrSeg < TotalSeg)
+   {
+    write(sockfd, "NEXT", strlen("NEXT"));
+    len = read(sockfd, Buffer, 1000);
+    Buffer[len + 2] = '\0';
+    printf("--Message from Server, length %d:\n%s\nNo of Segments: ",len,Buffer);
+    for(TempInt1 = 4;Buffer[TempInt1] != ':';TempInt1++);
+    for(++TempInt1, TempInt2 = 0;Buffer[TempInt1] != '[';TempInt1++,TempInt2++)
+    {
+      TempStr[TempInt2] = Buffer[TempInt1];
+      printf("%c",TempStr[TempInt2]);
+    }
+    printf("\n");
+    TempStr[TempInt2] = '\0';
+    printf("--Segments string: %s\n",TempStr);
+    TotalSeg = atoi(TempStr);
+    CurrSeg++;
+    for(TempInt2 = 0,++TempInt1; TempInt1 <= len; TempInt2++, TempInt1++)
+    {
+      fputc(Buffer[TempInt1],fp);
+    }
+    printf("\r%d\t of\t %d",CurrSeg,TotalSeg);
+   }
+   printf("\nFile Transfer Complete\n");
+   fclose(fp);
+   close(sockfd); 
+   exit(0);
+}

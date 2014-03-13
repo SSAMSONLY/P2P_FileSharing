@@ -1,0 +1,16 @@
+Maheshwara Reddy: A20284393
+Arun Mathew Iype : A20278285
+
+Design - Arun and Mahesh
+
+Build
+	Main			Mahesh
+	Config File Handling	               Arun
+	HandlerThreads		Mahesh
+	File Transfer		Arun
+	Test Platform		Arun
+	Integration		Mahesh
+
+Test
+	Unit Testing                         Mahesh and Arun
+	Integration Testing               Mahesh and Arun
